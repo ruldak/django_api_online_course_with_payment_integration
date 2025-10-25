@@ -11,7 +11,6 @@ def create_enrollment_on_payment_success(sender, instance, created, **kwargs):
         for item in cart_items:
             Enrollment.objects.get_or_create(
                 user=instance.user,
-                cart=instance.cart,
                 course=item.course,
                 defaults={'payment': instance}
             )
