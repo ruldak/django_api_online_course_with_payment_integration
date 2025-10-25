@@ -115,3 +115,7 @@ class CartItemListCreateView(generics.ListCreateAPIView):
 class CartItemDeleteView(generics.DestroyAPIView):
     queryset = CartItem.objects.all()
     serializer_class = CartItemSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return CartItem.objects.filter(cart=self.request.user.cart)
