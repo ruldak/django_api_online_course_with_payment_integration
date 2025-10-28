@@ -7,7 +7,8 @@ from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView, Spec
 from rest_framework.routers import DefaultRouter
 from user.views import RegisterView
 from courses import views
-from payment.views import CreatePayPalOrderView, CapturePayPalOrderView, CreateStrpieCheckoutSessionView, StripeWebhookView
+from payment.views import CreatePayPalOrderView, CapturePayPalOrderView, PayPalWebhookView, CreateStrpieCheckoutSessionView, StripeWebhookView
+from enrollments.views import MyEnrollmentListView
 
 router = DefaultRouter()
 router.register(r'cart', views.CartViewSet, basename='cart')
@@ -31,17 +32,19 @@ urlpatterns = [
     path('api/courses/<int:id>/', views.CourseDetailView.as_view(), name='course-detail'),
     path('api/instructor/courses/', views.InstructorCourseListView.as_view(), name='instructor-courses'),
     path('api/courses/<int:course_id>/lessons/', views.CourseLessonsListView.as_view(), name='lessons'),
+    path('api/my-enrollments/', MyEnrollmentListView.as_view(), name='my-enrollments'),
 
     # CREATE/UPDATE/DELETE endpoints
     path('api/courses/create/', views.CourseCreateView.as_view(), name='course-create'),
     path('api/courses/<int:id>/update/', views.CourseUpdateView.as_view(), name='course-update'),
     path('api/courses/<int:id>/delete/', views.CourseDeleteView.as_view(), name='course-delete'),
 
-    path('api/cart/items/', views.CartItemListCreateView.as_view(), name='cartitem'),
-    path('api/cart/items/<int:pk>/', views.CartItemDeleteView.as_view(), name='delete-cartitem'),
+    path('api/cart-items/', views.CartItemListCreateView.as_view(), name='cartitem'),
+    path('api/cart-items/<int:pk>/', views.CartItemDeleteView.as_view(), name='delete-cartitem'),
 
     path('api/paypal/create-order/', CreatePayPalOrderView.as_view(), name='paypal-create-order'),
     path('api/paypal/capture-order/', CapturePayPalOrderView.as_view(), name='paypal-capture-order'),
+    path('api/paypal/webhooks/', PayPalWebhookView.as_view(), name='paypal-webhooks'),
 
     path('api/stripe/create-order/', CreateStrpieCheckoutSessionView.as_view(), name='stripe-create-order'),
     path('api/stripe/webhooks/', StripeWebhookView.as_view(), name='stripe-webhooks'),
