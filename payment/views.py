@@ -16,6 +16,10 @@ import json
 from courses.models import Cart
 from django.views import View
 from django.http import JsonResponse
+import json
+import hmac
+import hashlib
+import base64
 
 class CreatePayPalOrderView(APIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -88,6 +92,43 @@ class CapturePayPalOrderView(APIView):
 
         except requests.exceptions.RequestException as e:
             return Response({'error': 'Failed to capture payment'}, status=500)
+
+@method_decorator(csrf_exempt, name='dispatch')
+class PayPalWebhookView(APIView):
+    authentication_classes = []
+    permission_classes = []
+
+    def post(self, request):
+        # Ambil body dan headers
+        body = request.body
+        data = json.loads(body.decode('utf-8'))
+
+        transmission_id = request.headers.get('PAYPAL-TRANSMISSION-ID')
+        transmission_time = request.headers.get('PAYPAL-TRANSMISSION-TIME')
+        transmission_sig = request.headers.get('PAYPAL-TRANSMISSION-SIG')
+        auth_algo = request.headers.get('PAYPAL-AUTH-ALGO')
+        webhook_id = config("PAYPAL_WEBHOOKS_ID")
+
+        # Buat signature base string
+        message = f"{transmission_id}|{transmission_time}|{webhook_id}|{body.decode('utf-8')}"
+        secret = config("PAYPAL_CLIENT_SECRET").encode('utf-8')
+
+        # HMAC-SHA256 signature
+        calculated_sig = base64.b64encode(hmac.new(secret, message.encode('utf-8'), hashlib.sha256).digest()).decode()
+
+        if calculated_sig != transmission_sig:
+            return Response({"error": "Invalid signature"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Tangani event
+        event_type = data.get("event_type")
+        if event_type == "PAYMENT.CAPTURE.COMPLETED":
+            print("Payment capture completed:", data.get("resource"))
+        elif event_type == "PAYMENT.CAPTURE.DENIED":
+            print("payment capture denied")
+        elif event_type == "PAYMENT.ORDER.CANCELLED":
+            print("payment order cancelled")
+
+        return Response({"status": "success"}, status=status.HTTP_200_OK)
 
 stripe.api_key = config('STRIPE_SECRET_KEY')
 
