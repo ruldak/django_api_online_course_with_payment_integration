@@ -58,6 +58,29 @@ class CourseLessonsListView(generics.ListAPIView):
 
         return Lesson.objects.filter(course=course_id).order_by('order')
 
+class CartViewSet(viewsets.ReadOnlyModelViewSet):
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = CartSerializer
+
+    def get_queryset(self):
+        return Cart.objects.filter(user=self.request.user)
+
+
+class CartItemListCreateView(generics.ListCreateAPIView):
+    serializer_class = CartItemSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return CartItem.objects.filter(cart=self.request.user.cart)
+
+    def perform_create(self, serializer):
+        try:
+            serializer.save(cart=self.request.user.cart)
+        except IntegrityError:
+            raise serializers.ValidationError({
+                'course': 'Course ini sudah ada di keranjang belanja.'
+            })
+
 # ===== CREATE/UPDATE VIEWS =====
 class CourseCreateView(generics.CreateAPIView):
     """Create new course"""
@@ -88,29 +111,6 @@ class CourseDeleteView(generics.DestroyAPIView):
     def get_queryset(self):
         return Course.objects.filter(instructor=self.request.user)
 
-
-class CartViewSet(viewsets.ReadOnlyModelViewSet):
-    permission_classes = [permissions.IsAuthenticated]
-    serializer_class = CartSerializer
-
-    def get_queryset(self):
-        return Cart.objects.filter(user=self.request.user)
-
-
-class CartItemListCreateView(generics.ListCreateAPIView):
-    serializer_class = CartItemSerializer
-    permission_classes = [permissions.IsAuthenticated]
-
-    def get_queryset(self):
-        return CartItem.objects.filter(cart=self.request.user.cart)
-
-    def perform_create(self, serializer):
-        try:
-            serializer.save(cart=self.request.user.cart)
-        except IntegrityError:
-            raise serializers.ValidationError({
-                'course': 'Course ini sudah ada di keranjang belanja.'
-            })
 
 class CartItemDeleteView(generics.DestroyAPIView):
     queryset = CartItem.objects.all()
