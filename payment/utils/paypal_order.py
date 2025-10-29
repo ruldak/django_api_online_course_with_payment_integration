@@ -22,8 +22,8 @@ def create_paypal_order(amount):
             }],
             "application_context": {
                 "brand_name": "Online Course",
-                "return_url": "https://www.tutorialrepublic.com/snippets/designs/elegant-success-modal.png",
-                "cancel_url": "https://cdn3.vectorstock.com/i/1000x1000/50/27/cancel-red-grunge-round-vintage-rubber-stamp-vector-9145027.jpg"
+                "return_url": "http://localhost:5173/checkout/success",
+                "cancel_url": "http://localhost:5173/checkout/fail"
             }
         }
 

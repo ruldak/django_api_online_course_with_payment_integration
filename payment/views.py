@@ -54,39 +54,30 @@ class CapturePayPalOrderView(APIView):
     Captures a PayPal order after customer approval.
     """
     def post(self, request):
+        access_token = get_paypal_access_token()
         order_id = request.data.get('order_id')
         if not order_id:
             return Response({'error': 'Order ID is required'}, status=400)
 
         try:
-            access_token = get_paypal_access_token()
             capture_url = f"{config('PAYPAL_BASE_URL', 'https://api.sandbox.paypal.com')}/v2/checkout/orders/{order_id}/capture"
             headers = {
                 'Content-Type': 'application/json',
-                'Authorization': f'Bearer {access_token}'
+                'Authorization': f'Bearer {access_token}',
             }
 
-            response = requests.post(capture_url, headers=headers)
+            response = requests.post(capture_url, headers=headers, json={})
             response_data = response.json()
 
             if response.status_code == 201:
-                # Pembayaran sukses
-
-                paymentTransaction = PaymentTransaction.objects.get(transaction_id=order_id)
-
-                serializer = PaymentTransactionSerializer(paymentTransaction, data={'status': 'success'}, partial=True)
-
-                if serializer.is_valid():
-                    serializer.save()
-
                 return Response({
-                    'status': 'success',
-                    'message': 'Payment captured successfully',
-                    'paypal_data': response_data  # Berisi ID transaksi dll.
+                    'status': 'success'
                 })
             else:
-                # Penangkapan pembayaran gagal
-                # Update status order di database: 'FAILED'
+                payment = PaymentTransaction.objects.filter(transaction_id=order_id)
+                if payment.exists():
+                    payment.update(status="failed")
+
                 error_message = response_data.get('message', 'Capture failed')
                 return Response({'error': error_message}, status=400)
 
@@ -99,36 +90,82 @@ class PayPalWebhookView(APIView):
     permission_classes = []
 
     def post(self, request):
-        # Ambil body dan headers
-        body = request.body
-        data = json.loads(body.decode('utf-8'))
+        try:
+            # Ambil body dan headers
+            raw_body = request.body
+            body = raw_body.decode('utf-8')
+            data = json.loads(body)
 
-        transmission_id = request.headers.get('PAYPAL-TRANSMISSION-ID')
-        transmission_time = request.headers.get('PAYPAL-TRANSMISSION-TIME')
-        transmission_sig = request.headers.get('PAYPAL-TRANSMISSION-SIG')
-        auth_algo = request.headers.get('PAYPAL-AUTH-ALGO')
-        webhook_id = config("PAYPAL_WEBHOOKS_ID")
+            required_headers = [
+                    'PAYPAL-TRANSMISSION-ID',
+                    'PAYPAL-TRANSMISSION-TIME',
+                    'PAYPAL-TRANSMISSION-SIG',
+                    'PAYPAL-AUTH-ALGO'
+                ]
 
-        # Buat signature base string
-        message = f"{transmission_id}|{transmission_time}|{webhook_id}|{body.decode('utf-8')}"
-        secret = config("PAYPAL_CLIENT_SECRET").encode('utf-8')
+            for header in required_headers:
+                if not request.headers.get(header):
+                    return Response(
+                        {"error": f"Missing required header: {header}"},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
 
-        # HMAC-SHA256 signature
-        calculated_sig = base64.b64encode(hmac.new(secret, message.encode('utf-8'), hashlib.sha256).digest()).decode()
+            transmission_id = request.headers.get('PAYPAL-TRANSMISSION-ID')
+            transmission_time = request.headers.get('PAYPAL-TRANSMISSION-TIME')
+            transmission_sig = request.headers.get('PAYPAL-TRANSMISSION-SIG')
+            auth_algo = request.headers.get('PAYPAL-AUTH-ALGO')
+            cert_url = request.headers.get('PAYPAL-CERT-URL')
+            webhook_id = config("PAYPAL_WEBHOOKS_ID")
 
-        if calculated_sig != transmission_sig:
-            return Response({"error": "Invalid signature"}, status=status.HTTP_400_BAD_REQUEST)
+            payload = {
+                "transmission_id": transmission_id,
+                "transmission_time": transmission_time,
+                "transmission_sig": transmission_sig,
+                "auth_algo": auth_algo,
+                "webhook_id": webhook_id,
+                "cert_url": cert_url,
+                "webhook_event": data
+            }
 
-        # Tangani event
-        event_type = data.get("event_type")
-        if event_type == "PAYMENT.CAPTURE.COMPLETED":
-            print("Payment capture completed:", data.get("resource"))
-        elif event_type == "PAYMENT.CAPTURE.DENIED":
-            print("payment capture denied")
-        elif event_type == "PAYMENT.ORDER.CANCELLED":
-            print("payment order cancelled")
+            access_token = get_paypal_access_token()
+            base_url = config("PAYPAL_BASE_URL")
+            verify_url = f"{base_url}/v1/notifications/verify-webhook-signature"
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {access_token}"
+            }
 
-        return Response({"status": "success"}, status=status.HTTP_200_OK)
+            response = requests.post(verify_url, headers=headers, json=payload)
+            verification_result = response.json()
+
+            if verification_result == "FAILURE":
+                return Response({"error": "Invalid signature"}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Tangani event
+            event_type = data.get("event_type")
+
+            if event_type == "PAYMENT.CAPTURE.COMPLETED":
+                order_id = data.get("resource", {}).get("supplementary_data", {}).get("related_ids", {}).get("order_id")
+                payment = PaymentTransaction.objects.get(transaction_id=order_id)
+
+                serializer = PaymentTransactionSerializer(payment, data={'status': 'success'}, partial=True)
+
+                if serializer.is_valid():
+                    serializer.save()
+
+                payment.cart.items.filter(status="in_cart").update(status="sold")
+            elif event_type == "PAYMENT.CAPTURE.DENIED":
+                order_id = data.get("resource", {}).get("supplementary_data", {}).get("related_ids", {}).get("order_id")
+                payment = PaymentTransaction.objects.filter(transaction_id=order_id)
+                if payment.exists():
+                    payment.update(status="failed")
+
+            return Response({"status": "success"}, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response(
+                {"error": "Internal server error"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 stripe.api_key = config('STRIPE_SECRET_KEY')
 
@@ -141,7 +178,7 @@ class CreateStrpieCheckoutSessionView(APIView):
 
             items = []
 
-            for item in cart.items.all():
+            for item in cart.items.filter(status="in_cart"):
                 items.append(
                     {
                         'price_data': {
@@ -157,11 +194,11 @@ class CreateStrpieCheckoutSessionView(APIView):
 
             # Create Checkout Session
             checkout_session = stripe.checkout.Session.create(
-                # payment_method_types=['card'],
+                payment_method_types=['card'],
                 line_items=items,
                 mode='payment',
-                success_url='https://www.tutorialrepublic.com/snippets/designs/elegant-success-modal.png',
-                cancel_url='https://cdn3.vectorstock.com/i/1000x1000/50/27/cancel-red-grunge-round-vintage-rubber-stamp-vector-9145027.jpg',
+                success_url='http://localhost:5173/checkout/success',
+                cancel_url='http://localhost:5173/checkout/fail',
                 # Link the session to our internal CartItem ID
                 client_reference_id=cart.id
             )
@@ -259,6 +296,7 @@ class StripeWebhookView(APIView):
         payment = PaymentTransaction.objects.filter(transaction_id=payment_intent['id'])
         if payment.exists():
             payment.update(status="success")
+            payment.cart.items.filter(status="in_cart").update(status="sold")
         print(f"Payment intent succeeded: {payment_intent['id']}")
 
     def handle_payment_intent_payment_failed(self, payment_intent):
