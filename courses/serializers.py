@@ -53,6 +53,7 @@ class CartItemSerializer(serializers.ModelSerializer):
         fields = [
             'id',
             'course',
+            'status',
             'course_name',
             'course_price',
         ]

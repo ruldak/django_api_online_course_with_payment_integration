@@ -40,10 +40,15 @@ class Cart(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def get_total_price(self):
-        return self.items.aggregate(total_price=Sum('course__price'))['total_price'] or 0
+        return self.items.filter(status='in_cart').aggregate(total_price=Sum('course__price'))['total_price'] or 0
 
 
 class CartItem(models.Model):
+    STATUS_CHOICES = [
+        ('in_cart', 'In Cart'),
+        ('sold', 'Sold'),
+    ]
+
     cart = models.ForeignKey(
         Cart,
         on_delete=models.CASCADE,
@@ -53,6 +58,7 @@ class CartItem(models.Model):
         Course,
         on_delete=models.CASCADE
     )
+    status = models.CharField(max_length=15, choices=STATUS_CHOICES, default="in_cart")
 
     class Meta:
         constraints = [
