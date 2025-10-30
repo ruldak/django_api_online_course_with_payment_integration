@@ -244,6 +244,8 @@ class StripeWebhookView(APIView):
             # Invalid signature
             return JsonResponse({'error': 'Invalid signature'}, status=401)
 
+        print(f"eventt: {event['type']}")
+
         # Handle event based on type
         if event['type'] == 'checkout.session.completed':
             session = event['data']['object']
@@ -273,8 +275,7 @@ class StripeWebhookView(APIView):
 
         try:
             cartUser = Cart.objects.get(id=cart_id)
-            # Create the Payment record now that payment is confirmed
-            PaymentTransaction.objects.create(
+            payment = PaymentTransaction.objects.create(
                 transaction_id=payment_intent_id,
                 amount=session.get('amount_total') / 100.0, # Stripe returns amount in cents
                 payment_gateway='stripe',
@@ -282,6 +283,8 @@ class StripeWebhookView(APIView):
                 status='success',
                 cart=cartUser
             )
+
+            payment.cart.items.filter(status="in_cart").update(status="sold")
 
         except Cart.DoesNotExist:
             print(f"ERROR: CartItem with id={cart_id} does not exist.")
@@ -293,11 +296,13 @@ class StripeWebhookView(APIView):
         Handler for event payment_intent.succeeded
         """
 
-        payment = PaymentTransaction.objects.filter(transaction_id=payment_intent['id'])
-        if payment.exists():
-            payment.update(status="success")
-            payment.cart.items.filter(status="in_cart").update(status="sold")
-        print(f"Payment intent succeeded: {payment_intent['id']}")
+        try:
+            payment = PaymentTransaction.objects.get(transaction_id=payment_intent['id'])
+            if payment.exists():
+                payment.update(status="success")
+            print(f"Payment intent succeeded: {payment_intent['id']}")
+        except Exception as e:
+            print(f"error: {e}")
 
     def handle_payment_intent_payment_failed(self, payment_intent):
         """
