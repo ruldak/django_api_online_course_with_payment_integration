@@ -37,7 +37,7 @@ class CourseSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Course
-        fields = ('id', 'title', 'description', 'category', 'category_name', 'instructor_name', 'price', 'created_at')
+        fields = ('id', 'title', 'description', 'category', 'category_name', 'instructor_name', 'price', 'rating', 'created_at')
 
 class CartItemSerializer(serializers.ModelSerializer):
     course_name = serializers.CharField(source='course.title', read_only=True)

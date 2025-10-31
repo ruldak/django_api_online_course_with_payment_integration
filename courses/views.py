@@ -28,7 +28,7 @@ class CourseListView(generics.ListAPIView):
     permission_classes = [permissions.AllowAny]
     filter_backends = [filters.OrderingFilter, DjangoFilterBackend]
     filterset_fields = ['category']
-    ordering_fields = ['created_at']
+    ordering_fields = ['created_at', 'price', 'rating']
 
 class CourseDetailView(generics.RetrieveAPIView):
     """Get single course detail"""

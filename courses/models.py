@@ -1,6 +1,6 @@
 from django.db import models
 from django.contrib.auth import get_user_model
-
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db.models import Sum
 
 User = get_user_model()
@@ -18,6 +18,7 @@ class Course(models.Model):
     category = models.ForeignKey(Category, on_delete=models.CASCADE, null=True)
     price = models.DecimalField(max_digits=10, decimal_places=2)
     created_at = models.DateTimeField(auto_now_add=True)
+    rating = models.DecimalField(default=0.00, max_digits=3, decimal_places=2, validators=[MinValueValidator(0.00), MaxValueValidator(5.00)])
     
     def __str__(self):
         return self.title
