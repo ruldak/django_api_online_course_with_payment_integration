@@ -29,7 +29,6 @@ urlpatterns = [
 
      # GET endpoints
     path('api/categories/', views.CategoryListView.as_view(), name='category-list'),
-    path('api/categories/create/', views.CategoryCreateView.as_view(), name='category-create'),
     path('api/courses/', views.CourseListView.as_view(), name='course-list'),
     path('api/courses/<int:id>/', views.CourseDetailView.as_view(), name='course-detail'),
     path('api/instructor/courses/', views.InstructorCourseListView.as_view(), name='instructor-courses'),
@@ -37,6 +36,7 @@ urlpatterns = [
     path('api/my-enrollments/', MyEnrollmentListView.as_view(), name='my-enrollments'),
 
     # CREATE/UPDATE/DELETE endpoints
+    path('api/categories/create/', views.CategoryCreateView.as_view(), name='category-create'),
     path('api/courses/create/', views.CourseCreateView.as_view(), name='course-create'),
     path('api/courses/<int:id>/update/', views.CourseUpdateView.as_view(), name='course-update'),
     path('api/courses/<int:id>/delete/', views.CourseDeleteView.as_view(), name='course-delete'),
