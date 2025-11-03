@@ -1,8 +1,7 @@
 from rest_framework import generics
-from rest_framework.response import Response
 from rest_framework import status
 from .serializers import RegisterSerializer
-from courses.models import Cart
+from config.response_util import success_response
 
 class RegisterView(generics.CreateAPIView):
     serializer_class = RegisterSerializer
@@ -10,7 +9,7 @@ class RegisterView(generics.CreateAPIView):
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        serializer.save()
+        user = serializer.save()
 
-        return Response({"message": "User registered successfully"}, status=status.HTTP_201_CREATED)
+        return success_response({"message": "User registered successfully"}, status_code=status.HTTP_201_CREATED)
 

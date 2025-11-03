@@ -1,8 +1,6 @@
 from rest_framework.views import APIView
-from rest_framework.response import Response
 from .utils.paypal_order import create_paypal_order
 from .serializers import PaymentTransactionSerializer
-from decimal import Decimal
 from .utils.paypal_access_token import get_paypal_access_token
 from .models import PaymentTransaction
 import requests
@@ -14,12 +12,7 @@ from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
 import json
 from courses.models import Cart
-from django.views import View
-from django.http import JsonResponse
-import json
-import hmac
-import hashlib
-import base64
+from config.response_util import success_response, error_response, validation_error_response
 
 class CreatePayPalOrderView(APIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -39,15 +32,13 @@ class CreatePayPalOrderView(APIView):
                 'user': request.user.id
             })
             if serializer.is_valid():
-                print("payment transaksi saved...")
                 serializer.save()
             else:
-                print("serializer errors:", serializer.errors)
-                return Response(serializer.errors, status=400)
+                return validation_error_response(serializer.errors)
 
-            return Response(response)
+            return success_response(response)
         except Exception as e:
-            return Response({"error": str(e)}, status=500)
+            return error_response(str(e), status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class CapturePayPalOrderView(APIView):
     """
@@ -57,7 +48,7 @@ class CapturePayPalOrderView(APIView):
         access_token = get_paypal_access_token()
         order_id = request.data.get('order_id')
         if not order_id:
-            return Response({'error': 'Order ID is required'}, status=400)
+            return error_response('Order ID is required', status.HTTP_400_BAD_REQUEST)
 
         try:
             capture_url = f"{config('PAYPAL_BASE_URL', 'https://api.sandbox.paypal.com')}/v2/checkout/orders/{order_id}/capture"
@@ -70,19 +61,17 @@ class CapturePayPalOrderView(APIView):
             response_data = response.json()
 
             if response.status_code == 201:
-                return Response({
-                    'status': 'success'
-                })
+                return success_response({'status': 'success'})
             else:
                 payment = PaymentTransaction.objects.filter(transaction_id=order_id)
                 if payment.exists():
                     payment.update(status="failed")
 
                 error_message = response_data.get('message', 'Capture failed')
-                return Response({'error': error_message}, status=400)
+                return error_response(error_message, status.HTTP_400_BAD_REQUEST)
 
         except requests.exceptions.RequestException as e:
-            return Response({'error': 'Failed to capture payment'}, status=500)
+            return error_response('Failed to capture payment', status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @method_decorator(csrf_exempt, name='dispatch')
 class PayPalWebhookView(APIView):
@@ -108,10 +97,7 @@ class PayPalWebhookView(APIView):
 
             for header in required_headers:
                 if not request.headers.get(header):
-                    return Response(
-                        {"error": f"Missing required header: {header}"},
-                        status=status.HTTP_400_BAD_REQUEST
-                    )
+                    return error_response(f"Missing required header: {header}", status.HTTP_400_BAD_REQUEST)
 
             transmission_id = request.headers.get('PAYPAL-TRANSMISSION-ID')
             transmission_time = request.headers.get('PAYPAL-TRANSMISSION-TIME')
@@ -142,7 +128,7 @@ class PayPalWebhookView(APIView):
             verification_result = response.json()
 
             if verification_result == "FAILURE":
-                return Response({"error": "Invalid signature"}, status=status.HTTP_400_BAD_REQUEST)
+                return error_response("Invalid signature", status.HTTP_400_BAD_REQUEST)
 
             event_type = data.get("event_type")
             if event_type == "PAYMENT.CAPTURE.COMPLETED":
@@ -161,12 +147,9 @@ class PayPalWebhookView(APIView):
                 if payment.exists():
                     payment.update(status="failed")
 
-            return Response({"status": "success"}, status=status.HTTP_200_OK)
+            return success_response(None)
         except Exception as e:
-            return Response(
-                {"error": "Internal server error"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+            return error_response("Internal server error", status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 stripe.api_key = config('STRIPE_SECRET_KEY')
 
@@ -202,16 +185,13 @@ class CreateStrpieCheckoutSessionView(APIView):
                 client_reference_id=cart.id
             )
 
-            return Response({
+            return success_response({
                 'sessionId': checkout_session.id,
                 'url': checkout_session.url
-            }, status=status.HTTP_201_CREATED)
+            }, status_code=status.HTTP_201_CREATED)
 
         except Exception as e:
-            return Response(
-                {'error': str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+            return error_response(str(e), status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @method_decorator(csrf_exempt, name='dispatch')
 class StripeWebhookView(APIView):
@@ -235,12 +215,10 @@ class StripeWebhookView(APIView):
             )
         except ValueError as e:
             # Invalid payload
-            return JsonResponse({'error': 'Invalid payload'}, status=400)
+            return error_response('Invalid payload', status.HTTP_400_BAD_REQUEST)
         except stripe.error.SignatureVerificationError as e:
             # Invalid signature
-            return JsonResponse({'error': 'Invalid signature'}, status=401)
-
-        print(f"eventt: {event['type']}")
+            return error_response('Invalid signature', status.HTTP_401_UNAUTHORIZED)
 
         # Handle event based on type
         if event['type'] == 'checkout.session.completed':
@@ -255,7 +233,7 @@ class StripeWebhookView(APIView):
             payment_intent = event['data']['object']
             self.handle_payment_intent_payment_failed(payment_intent)
 
-        return JsonResponse({'status': 'processed'}, status=200)
+        return success_response({'status': 'processed'})
 
     def handle_checkout_session_completed(self, session):
         """

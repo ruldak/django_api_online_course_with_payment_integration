@@ -1,6 +1,5 @@
 from rest_framework import generics, permissions, status, filters, viewsets, serializers
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework.response import Response
 from django.db import models, IntegrityError
 from .models import Course, Lesson, Category, Cart, CartItem
 from .serializers import CourseSerializer, CategorySerializer, CartItemSerializer, CartSerializer, CreateCourseSerializer, LessonSerializer
