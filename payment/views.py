@@ -86,12 +86,15 @@ class CapturePayPalOrderView(APIView):
 
 @method_decorator(csrf_exempt, name='dispatch')
 class PayPalWebhookView(APIView):
+    """
+    View to handle PayPal webhooks
+    """
+
     authentication_classes = []
     permission_classes = []
 
     def post(self, request):
         try:
-            # Ambil body dan headers
             raw_body = request.body
             body = raw_body.decode('utf-8')
             data = json.loads(body)
@@ -141,9 +144,7 @@ class PayPalWebhookView(APIView):
             if verification_result == "FAILURE":
                 return Response({"error": "Invalid signature"}, status=status.HTTP_400_BAD_REQUEST)
 
-            # Tangani event
             event_type = data.get("event_type")
-
             if event_type == "PAYMENT.CAPTURE.COMPLETED":
                 order_id = data.get("resource", {}).get("supplementary_data", {}).get("related_ids", {}).get("order_id")
                 payment = PaymentTransaction.objects.get(transaction_id=order_id)
@@ -192,19 +193,14 @@ class CreateStrpieCheckoutSessionView(APIView):
                     }
                 )
 
-            # Create Checkout Session
             checkout_session = stripe.checkout.Session.create(
                 payment_method_types=['card'],
                 line_items=items,
                 mode='payment',
                 success_url='http://localhost:5173/checkout/success',
                 cancel_url='http://localhost:5173/checkout/fail',
-                # Link the session to our internal CartItem ID
                 client_reference_id=cart.id
             )
-
-            # DO NOT create a Payment object here.
-            # We will create it in the webhook after payment is confirmed.
 
             return Response({
                 'sessionId': checkout_session.id,
@@ -220,10 +216,10 @@ class CreateStrpieCheckoutSessionView(APIView):
 @method_decorator(csrf_exempt, name='dispatch')
 class StripeWebhookView(APIView):
     """
-    Class-Based View to handle Stripe webhooks
+    View to handle Stripe webhooks
     """
 
-    authentication_classes = []  # Penting: nonaktifkan autentikasi
+    authentication_classes = []
     permission_classes = [permissions.AllowAny]
 
     def post(self, request, *args, **kwargs):
@@ -308,7 +304,6 @@ class StripeWebhookView(APIView):
         """
         Handler for event payment_intent.payment_failed
         """
-        # Find the payment record and mark it as failed.
         payment = PaymentTransaction.objects.filter(transaction_id=payment_intent['id'])
         if payment.exists():
             payment.update(status="failed")

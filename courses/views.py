@@ -78,7 +78,7 @@ class CartItemListCreateView(generics.ListCreateAPIView):
             serializer.save(cart=self.request.user.cart)
         except IntegrityError:
             raise serializers.ValidationError({
-                'course': 'Course ini sudah ada di keranjang belanja.'
+                'course': 'This course is already in your cart.'
             })
 
 # ===== CREATE/UPDATE VIEWS =====

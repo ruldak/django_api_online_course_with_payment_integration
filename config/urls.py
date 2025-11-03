@@ -31,7 +31,7 @@ urlpatterns = [
     path('api/categories/', views.CategoryListView.as_view(), name='category-list'),
     path('api/courses/', views.CourseListView.as_view(), name='course-list'),
     path('api/courses/<int:id>/', views.CourseDetailView.as_view(), name='course-detail'),
-    path('api/instructor/courses/', views.InstructorCourseListView.as_view(), name='instructor-courses'),
+    # path('api/instructor/courses/', views.InstructorCourseListView.as_view(), name='instructor-courses'),
     path('api/courses/<int:course_id>/lessons/', views.CourseLessonsListView.as_view(), name='lessons'),
     path('api/my-enrollments/', MyEnrollmentListView.as_view(), name='my-enrollments'),
 

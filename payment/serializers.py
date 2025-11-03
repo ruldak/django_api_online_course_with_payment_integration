@@ -2,13 +2,6 @@ from rest_framework import serializers
 from .models import PaymentTransaction
 from courses.serializers import CartSerializer
 
-class PaymentInitSerializer(serializers.Serializer):
-    course_id = serializers.IntegerField()
-    payment_method = serializers.ChoiceField(choices=[
-        'stripe', # sementara, change this later
-        'pay_pal',
-    ])
-
 class PaymentTransactionSerializer(serializers.ModelSerializer):
     cart_detail = CartSerializer(read_only=True)
 
