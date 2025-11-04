@@ -6,16 +6,8 @@ from .serializers import CourseSerializer, CategorySerializer, CartItemSerialize
 from enrollments.models import Enrollment
 from rest_framework.exceptions import PermissionDenied
 
-# ===== GET VIEWS =====
-
 class CategoryListView(generics.ListAPIView):
     """Get all categories"""
-    queryset = Category.objects.all()
-    serializer_class = CategorySerializer
-    permission_classes = [permissions.AllowAny]
-
-# temporary view, remove this later
-class CategoryCreateView(generics.CreateAPIView):
     queryset = Category.objects.all()
     serializer_class = CategorySerializer
     permission_classes = [permissions.AllowAny]
@@ -79,37 +71,6 @@ class CartItemListCreateView(generics.ListCreateAPIView):
             raise serializers.ValidationError({
                 'course': 'This course is already in your cart.'
             })
-
-# ===== CREATE/UPDATE VIEWS =====
-class CourseCreateView(generics.CreateAPIView):
-    """Create new course"""
-    queryset = Course.objects.all()
-    serializer_class = CreateCourseSerializer
-    permission_classes = [permissions.IsAuthenticated]
-
-    def perform_create(self, serializer):
-        serializer.save(instructor=self.request.user)
-
-class CourseUpdateView(generics.UpdateAPIView):
-    """Update course - only by instructor"""
-    queryset = Course.objects.all()
-    serializer_class = CourseSerializer
-    permission_classes = [permissions.IsAuthenticated]
-    lookup_field = 'id'
-
-    def get_queryset(self):
-        return Course.objects.filter(instructor=self.request.user)
-
-class CourseDeleteView(generics.DestroyAPIView):
-    """Delete course - only by instructor"""
-    queryset = Course.objects.all()
-    serializer_class = CourseSerializer
-    permission_classes = [permissions.IsAuthenticated]
-    lookup_field = 'id'
-
-    def get_queryset(self):
-        return Course.objects.filter(instructor=self.request.user)
-
 
 class CartItemDeleteView(generics.DestroyAPIView):
     queryset = CartItem.objects.all()
