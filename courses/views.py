@@ -5,6 +5,7 @@ from .models import Course, Lesson, Category, Cart, CartItem
 from .serializers import CourseSerializer, CategorySerializer, CartItemSerializer, CartSerializer, CreateCourseSerializer, LessonSerializer
 from enrollments.models import Enrollment
 from rest_framework.exceptions import PermissionDenied
+from config.response_util import error_response
 
 class CategoryListView(generics.ListAPIView):
     """Get all categories"""
@@ -63,6 +64,14 @@ class CartItemListCreateView(generics.ListCreateAPIView):
 
     def get_queryset(self):
         return CartItem.objects.filter(cart=self.request.user.cart)
+
+    def post(self, request):
+        cart = Cart.objects.get(user=request.user)
+        exists = cart.items.filter(course=request.data.get("course")).exists()
+        if exists:
+            return error_response("The course is already in your cart or has been purchased by you previously." ,status.HTTP_400_BAD_REQUEST)
+
+        return super().post(request)
 
     def perform_create(self, serializer):
         try:
